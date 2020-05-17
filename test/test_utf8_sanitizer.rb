@@ -325,6 +325,45 @@ describe Rack::UTF8Sanitizer do
     end
   end
 
+  describe "with xml input" do
+    def request_env
+      {
+        "REQUEST_METHOD" => "POST",
+        "CONTENT_TYPE" => @content_type,
+        "rack.input" => @rack_input
+      }
+    end
+
+    def sanitize_data(request_env = request_env())
+      @uri_input = 'http:foo/bar'
+      @response_env = @app.(request_env)
+      sanitized_input = @response_env['rack.input']
+
+      yield sanitized_input if block_given?
+    end
+
+    it "does not sanitizes StringIO rack.input when content-type is correct" do
+      @content_type = 'application/xml'
+      @rack_input = StringIO.new('<body>bar\xED</body>')
+
+      env = request_env
+      sanitize_data(env) do |sanitized_input|
+        sanitized_input.should == @rack_input
+      end
+    end
+
+    it "sanitizes StringIO rack.input when content_type is x-www-form-urlencoded" do
+      @content_type = 'application/x-www-form-urlencoded'
+      @rack_input = StringIO.new('<body>bar\xED</body>')
+
+      env = request_env
+      sanitize_data(env) do |sanitized_input|
+        sanitized_input.should != @rack_input
+        sanitized_input.class.should == Rack::UTF8Sanitizer::SanitizedRackInput
+      end
+    end
+  end
+
   describe "with custom content-type" do
     def request_env
       {
